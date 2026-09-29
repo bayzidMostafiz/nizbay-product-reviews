@@ -2,7 +2,7 @@
 
 client_id = "2a073ba3d3596eaa8f1758c59536533c"
 name = "NizBay Product Reviews"
-application_url = "https://example.com"
+application_url = "https://nizbay-product-reviews.vercel.app"
 embedded = true
 
 [access_scopes]
@@ -45,8 +45,11 @@ api_version = "2026-10"
   topics = [ "app/scopes_update" ]
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [
+  "https://nizbay-product-reviews.vercel.app/auth/callback",
+  "https://nizbay-product-reviews.vercel.app/auth/shopify/callback",
+  "https://nizbay-product-reviews.vercel.app/api/auth"
+]
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true
