@@ -1,0 +1,6 @@
+[[extensions]]
+name = "NizBay Subscription"
+type = "subscription_link_extension"
+handle = "nizbay-subscription"
+uid = "98ad8873-675b-dd31-fd1b-7541202e0a62ef3c5842"
+pattern = "/subscriptions{?customer_id,shop}&id={contract_id}"

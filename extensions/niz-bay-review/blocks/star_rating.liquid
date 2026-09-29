@@ -1,0 +1,143 @@
+<div class="nizbay-review-container" style="margin: 30px 0; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; font-family: inherit;">
+  <h3 style="font-size: 22px; font-weight: 700; margin-bottom: 20px; color: #0f172a;">
+    Customer Reviews
+  </h3>
+
+  <!-- রিভিউ লিস্ট দেখানোর জায়গা -->
+  <div id="nizbay-reviews-list" style="margin-bottom: 30px;">
+    <p style="color: #64748b;">Loading reviews...</p>
+  </div>
+
+  <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+
+  <!-- নতুন রিভিউ সাবমিট করার ফর্ম -->
+  <h4 style="font-size: 18px; font-weight: 600; margin-bottom: 16px; color: #0f172a;">
+    Write a Review
+  </h4>
+
+  <form id="nizbay-review-form" style="display: flex; flex-direction: column; gap: 14px; max-width: 500px;">
+    <input type="text" id="review-name" placeholder="Your Name" required 
+      style="padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; width: 100%;">
+
+    <input type="email" id="review-email" placeholder="Your Email" required 
+      style="padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; width: 100%;">
+
+    <select id="review-rating" required 
+      style="padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; width: 100%;">
+      <option value="5">★★★★★ (5 Stars)</option>
+      <option value="4">★★★★☆ (4 Stars)</option>
+      <option value="3">★★★☆☆ (3 Stars)</option>
+      <option value="2">★★☆☆☆ (2 Stars)</option>
+      <option value="1">★☆☆☆☆ (1 Star)</option>
+    </select>
+
+    <input type="text" id="review-title" placeholder="Review Title" 
+      style="padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; width: 100%;">
+
+    <textarea id="review-body" rows="4" placeholder="Write your experience..." required 
+      style="padding: 10px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 15px; width: 100%;"></textarea>
+
+    <button type="submit" id="review-submit-btn" 
+      style="padding: 12px 20px; background: #008060; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: 600; cursor: pointer; transition: 0.2s;">
+      Submit Review
+    </button>
+    <p id="review-status-msg" style="margin: 0; font-size: 14px; display: none;"></p>
+  </form>
+</div>
+
+<script>
+  (function() {
+    const API_BASE_URL = "https://picture-instance-photo-korea.trycloudflare.com"; // apnar running cloudflare tunnel url
+    const SHOP = "{{ shop.permanent_domain }}";
+    const PRODUCT_ID = "gid://shopify/Product/{{ product.id }}";
+
+    const reviewsList = document.getElementById("nizbay-reviews-list");
+    const reviewForm = document.getElementById("nizbay-review-form");
+    const statusMsg = document.getElementById("review-status-msg");
+
+    // ১. ডাটাবেজ থেকে এপ্রুভ হওয়া রিভিউ আনা
+    async function loadReviews() {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/reviews?shop=${SHOP}&productId=${encodeURIComponent(PRODUCT_ID)}`);
+        const data = await res.json();
+
+        if (!data.reviews || data.reviews.length === 0) {
+          reviewsList.innerHTML = "<p style='color: #64748b;'>No reviews yet. Be the first to write one!</p>";
+          return;
+        }
+
+        reviewsList.innerHTML = data.reviews.map(r => `
+          <div style="padding: 14px 0; border-bottom: 1px solid #f1f5f9;">
+            <div style="color: #f59e0b; font-size: 16px; margin-bottom: 4px;">
+              ${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}
+            </div>
+            <strong style="color: #0f172a; font-size: 16px;">${r.customerName}</strong>
+            ${r.isVerifiedBuyer ? '<span style="background: #ecfdf5; color: #059669; font-size: 12px; padding: 2px 8px; border-radius: 9999px; margin-left: 8px; font-weight: 600;">Verified Buyer</span>' : ''}
+            ${r.title ? `<p style="font-weight: 600; color: #1e293b; margin: 6px 0 2px 0;">${r.title}</p>` : ''}
+            <p style="color: #475569; margin: 4px 0 0 0; font-size: 14px;">${r.body}</p>
+          </div>
+        `).join("");
+      } catch (err) {
+        reviewsList.innerHTML = "<p style='color: #ef4444;'>Failed to load reviews.</p>";
+      }
+    }
+
+    // ২. নতুন রিভিউ সাবমিট করা
+    reviewForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("review-submit-btn");
+      btn.disabled = true;
+      btn.innerText = "Submitting...";
+
+      const payload = {
+        shop: SHOP,
+        productId: PRODUCT_ID,
+        customerName: document.getElementById("review-name").value,
+        customerEmail: document.getElementById("review-email").value,
+        rating: Number(document.getElementById("review-rating").value),
+        title: document.getElementById("review-title").value,
+        body: document.getElementById("review-body").value,
+      };
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/reviews`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const result = await res.json();
+        statusMsg.style.display = "block";
+
+        if (res.ok) {
+          statusMsg.style.color = "#059669";
+          statusMsg.innerText = "Thank you! Your review is pending approval.";
+          reviewForm.reset();
+        } else {
+          statusMsg.style.color = "#ef4444";
+          statusMsg.innerText = result.error || "Submission failed.";
+        }
+      } catch (err) {
+        statusMsg.style.display = "block";
+        statusMsg.style.color = "#ef4444";
+        statusMsg.innerText = "Error connecting to server.";
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Submit Review";
+      }
+    });
+
+    loadReviews();
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "NizBay Reviews",
+  "target": "section",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": []
+}
+{% endschema %}
