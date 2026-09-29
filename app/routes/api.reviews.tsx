@@ -1,17 +1,16 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 
-// CORS হেডার ফাংশন (স্টোরফ্রন্ট থেকে রিকোয়েস্ট এক্সেপ্ট করার জন্য)
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-// ১. GET: স্টোরফ্রন্টে শুধুমাত্র Approved রিভিউ পাঠানোর জন্য
+// Loader: GET ebong OPTIONS handle korbe
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   const url = new URL(request.url);
@@ -25,31 +24,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  const reviews = await prisma.review.findMany({
-    where: {
-      shop,
-      productId,
-      status: "approved", // শুধু এপ্রুভ হওয়া রিভিউ দেখাবে
-    },
-    orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      customerName: true,
-      rating: true,
-      title: true,
-      body: true,
-      createdAt: true,
-      isVerifiedBuyer: true,
-    },
-  });
+  try {
+    const reviews = await prisma.review.findMany({
+      where: {
+        shop,
+        productId: String(productId),
+        status: "approved",
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        customerName: true,
+        rating: true,
+        title: true,
+        body: true,
+        createdAt: true,
+        isVerifiedBuyer: true,
+      },
+    });
 
-  return Response.json({ reviews }, { headers: corsHeaders });
+    return Response.json({ reviews }, { headers: corsHeaders });
+  } catch (error) {
+    return Response.json(
+      { error: "Failed to fetch reviews" },
+      { status: 500, headers: corsHeaders }
+    );
+  }
 };
 
-// ২. POST: কাস্টমার যখন স্টোরফ্রন্ট থেকে নতুন রিভিউ সাবমিট করবে
+// Action: POST ebong OPTIONS handle korbe
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { status: 204, headers: corsHeaders });
   }
 
   try {
@@ -66,13 +72,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const newReview = await prisma.review.create({
       data: {
         shop,
-        productId,
+        productId: String(productId),
         customerName,
         customerEmail,
         rating: Number(rating),
         title: title || "",
         body,
-        status: "pending", // কাস্টমার দিলে ডিফল্ট 'pending' থাকবে
+        status: "pending",
       },
     });
 
@@ -81,6 +87,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       { status: 201, headers: corsHeaders }
     );
   } catch (error) {
+    console.error("Review creation error:", error);
     return Response.json(
       { error: "Failed to create review" },
       { status: 500, headers: corsHeaders }
