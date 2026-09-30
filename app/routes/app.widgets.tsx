@@ -1,11 +1,10 @@
-import { json } from "@remix-run/node";
-import { useLoaderData, useFetcher } from "@remix-run/react";
+import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
+import { useLoaderData, useFetcher } from "react-router";
 import { Page, Layout, Card, BlockStack, InlineStack, Text, Button, Badge } from "@shopify/polaris";
-import { useState } from "react";
 import { authenticate } from "../shopify.server";
 
-// ১. মেটাফিল্ড বা ডাটাবেজ থেকে সেভ থাকা উইজেট স্টেট রিড করা
-export const loader = async ({ request }) => {
+// ১. মেটাফিল্ড রিড করা
+export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
 
   const response = await admin.graphql(`
@@ -27,23 +26,32 @@ export const loader = async ({ request }) => {
   const data = await response.json();
   const edges = data.data?.currentAppInstallation?.metafields?.edges || [];
   
-  const settings = {};
-  edges.forEach(({ node }) => {
+  const settings: Record<string, boolean> = {};
+  edges.forEach(({ node }: any) => {
     settings[node.key] = node.value === "true";
   });
 
-  return json({ settings });
+  return { settings };
 };
 
-// ২. টগল বাটন ক্লিক করলে শপিফাই মেটাফিল্ড আপডেট করা
-export const action = async ({ request }) => {
+// ২. মেটাফিল্ড আপডেট করা
+export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
   const formData = await request.formData();
-  const key = formData.get("key");
+  const key = formData.get("key") as string;
   const enabled = formData.get("enabled") === "true";
 
-  // App Installation-এর নিজস্ব মেটাফিল্ডে সেভ করা
-  const response = await admin.graphql(`
+  const appInstallationRes = await admin.graphql(`
+    query { 
+      currentAppInstallation { 
+        id 
+      } 
+    }
+  `);
+  const appData = await appInstallationRes.json();
+  const ownerId = appData.data.currentAppInstallation.id;
+
+  await admin.graphql(`
     #graphql
     mutation setWidgetMetafield($metafields: [MetafieldsSetInput!]!) {
       metafieldsSet(metafields: $metafields) {
@@ -65,16 +73,15 @@ export const action = async ({ request }) => {
           key: key,
           type: "boolean",
           value: enabled ? "true" : "false",
-          ownerId: (await admin.graphql(`query { currentAppInstallation { id } }`).then(r => r.json())).data.currentAppInstallation.id
+          ownerId: ownerId
         }
       ]
     }
   });
 
-  return json({ success: true });
+  return { success: true };
 };
 
-// ৩. উইজেট লিস্টের UI
 const WIDGETS = [
   { id: "star_rating", name: "Star Rating Badge", description: "Display star rating summary under product title." },
   { id: "review_list", name: "Full Review List & Form", description: "The full review submission box and customer reviews list." },
@@ -84,7 +91,7 @@ const WIDGETS = [
 ];
 
 export default function WidgetsPage() {
-  const { settings } = useLoaderData();
+  const { settings } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
 
   return (
