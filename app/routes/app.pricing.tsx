@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher } from "react-router";
+import { useEffect } from "react";
 import {
   Page,
   Card,
@@ -41,24 +42,82 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing } = await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
   const formData = await request.formData();
   const selectedPlan = formData.get("plan") as string;
 
-  const targetPlan = selectedPlan === "enterprise" ? ENTERPRISE_PLAN : PRO_PLAN;
-  const currentUrl = new URL(request.url);
+  const isEnterprise = selectedPlan === "enterprise";
+  const planName = isEnterprise ? ENTERPRISE_PLAN : PRO_PLAN;
+  const planPrice = isEnterprise ? 29.99 : 9.99;
 
-  // returnUrl অবশ্যই অ্যাপের নিজস্ব ডোমেইন রুট হতে হবে (admin.shopify.com নয়)
-  return await billing.request({
-    plan: targetPlan,
-    isTest: true,
-    returnUrl: `${currentUrl.origin}/app/widgets`,
-  });
+  const url = new URL(request.url);
+  const returnUrl = `${url.origin}/app/widgets`;
+
+  // GraphQL diye direct recurring subscription create kora
+  const response = await admin.graphql(
+    `#graphql
+    mutation CreateSubscription($name: String!, $returnUrl: URL!, $price: Decimal!) {
+      appSubscriptionCreate(
+        name: $name
+        returnUrl: $returnUrl
+        test: true
+        lineItems: [
+          {
+            plan: {
+              appRecurringPricingDetails: {
+                price: { amount: $price, currencyCode: USD }
+                interval: EVERY_30_DAYS
+              }
+            }
+          }
+        ]
+      ) {
+        userErrors {
+          field
+          message
+        }
+        confirmationUrl
+        appSubscription {
+          id
+        }
+      }
+    }`,
+    {
+      variables: {
+        name: planName,
+        returnUrl: returnUrl,
+        price: planPrice,
+      },
+    }
+  );
+
+  const resData = await response.json();
+  const confirmationUrl =
+    resData.data?.appSubscriptionCreate?.confirmationUrl;
+
+  if (confirmationUrl) {
+    return { confirmationUrl };
+  }
+
+  const errors = resData.data?.appSubscriptionCreate?.userErrors;
+  console.error("Subscription Error:", errors);
+  return { error: errors?.[0]?.message || "Failed to create subscription" };
 };
 
 export default function PricingPage() {
   const { currentPlan } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher();
+  const fetcher = useFetcher<any>();
+
+  // Confirmation URL ashle puro browser window Shopify checkout screen e niye jabe
+  useEffect(() => {
+    if (fetcher.data?.confirmationUrl) {
+      if (window.top) {
+        window.top.location.href = fetcher.data.confirmationUrl;
+      } else {
+        window.location.href = fetcher.data.confirmationUrl;
+      }
+    }
+  }, [fetcher.data]);
 
   const plans = [
     {
