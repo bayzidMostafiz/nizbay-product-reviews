@@ -52,5 +52,12 @@ redirect_urls = [
   "https://nizbay-product-reviews.vercel.app/api/auth/callback"
 ]
 
+[navigation]
+links = [
+  { label = "Home", url = "/app" },
+  { label = "Widgets", url = "/app/widgets" },
+  { label = "Additional page", url = "/app/additional" }
+]
+
 [build]
 automatically_update_urls_on_dev = false
