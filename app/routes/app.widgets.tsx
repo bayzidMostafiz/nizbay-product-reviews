@@ -13,13 +13,22 @@ import {
   Box,
   Image,
   Divider,
+  Banner,
 } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
-import { authenticate } from "../shopify.server";
+import { authenticate, MONTHLY_PLAN } from "../shopify.server";
 
-// 1. Metafield read kora
+// 1. Metafield read & Billing status check
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, billing } = await authenticate.admin(request);
+
+  // Billing check: store-er active premium subscription ache kina
+  const billingCheck = await billing.check({
+    plans: [MONTHLY_PLAN],
+    isTest: true,
+  });
+
+  const hasPremium = billingCheck.hasActivePayment;
 
   const response = await admin.graphql(`
     #graphql
@@ -45,15 +54,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     settings[node.key] = node.value === "true";
   });
 
-  return { settings };
+  return { settings, hasPremium };
 };
 
-// 2. Toggle button click korle Metafield update kora
+// 2. Action: check plan before saving metafield
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, billing } = await authenticate.admin(request);
   const formData = await request.formData();
   const key = formData.get("key") as string;
   const enabled = formData.get("enabled") === "true";
+  const isPremiumWidget = formData.get("isPremium") === "true";
+
+  // Check if store has premium for locked widgets
+  const billingCheck = await billing.check({
+    plans: [MONTHLY_PLAN],
+    isTest: true,
+  });
+
+  if (isPremiumWidget && !billingCheck.hasActivePayment && enabled) {
+    return { error: "Requires Premium Subscription" };
+  }
 
   const appInstallationRes = await admin.graphql(`
     query { 
@@ -66,8 +86,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const ownerId = appData.data.currentAppInstallation.id;
 
   await admin.graphql(
-    `
-    #graphql
+    `#graphql
     mutation setWidgetMetafield($metafields: [MetafieldsSetInput!]!) {
       metafieldsSet(metafields: $metafields) {
         metafields {
@@ -79,17 +98,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           message
         }
       }
-    }
-  `,
+    }`,
     {
       variables: {
         metafields: [
           {
             namespace: "nizbay_widgets",
-            key: key,
+            key,
             type: "boolean",
             value: enabled ? "true" : "false",
-            ownerId: ownerId,
+            ownerId,
           },
         ],
       },
@@ -99,119 +117,164 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return { success: true };
 };
 
-// 3. Widget list sathe preview dummy image
+// 3. Widgets with Free & Premium configuration
 const WIDGETS = [
   {
     id: "star_rating",
     name: "Star Rating Badge",
     description: "Display compact star ratings directly below your product titles.",
     image: "https://placehold.co/600x320/2563eb/ffffff?text=Star+Rating+Widget",
+    isPremium: false,
   },
   {
     id: "review_list",
     name: "Full Review Form & List",
     description: "Complete review submission form with ratings, text, and customer reviews.",
     image: "https://placehold.co/600x320/059669/ffffff?text=Review+List+%26+Form",
+    isPremium: false,
   },
   {
     id: "review_carousel",
     name: "Review Carousel",
     description: "Horizontal interactive review slider to showcase customer testimonials.",
     image: "https://placehold.co/600x320/7c3aed/ffffff?text=Review+Carousel",
+    isPremium: true,
   },
   {
     id: "verified_badge",
     name: "Verified Buyer Badge",
     description: "Highlight authentic buyer trust badges beside verified purchase reviews.",
     image: "https://placehold.co/600x320/ea580c/ffffff?text=Verified+Buyer+Badge",
+    isPremium: true,
   },
   {
     id: "minimal_card",
     name: "Minimal Review Card",
     description: "Modern compact highlight card ideal for sidebars, carts, or footer sections.",
     image: "https://placehold.co/600x320/0284c7/ffffff?text=Minimal+Review+Card",
+    isPremium: true,
   },
 ];
 
 export default function WidgetsPage() {
-  const { settings } = useLoaderData<typeof loader>();
+  const { settings, hasPremium } = useLoaderData<typeof loader>();
   const fetcher = useFetcher();
 
   return (
     <AppProvider i18n={enTranslations}>
       <Page
         title="Review Widgets"
-        subtitle="Turn review components on or off to make them available in your store theme."
+        subtitle="Manage free and premium storefront review components."
+        primaryAction={
+          !hasPremium
+            ? {
+                content: "Upgrade to Premium ($9.99/mo)",
+                url: "/app/upgrade",
+              }
+            : undefined
+        }
       >
         <Box paddingBlockEnd="800">
-          <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
-            {WIDGETS.map((widget) => {
-              const isEnabled = settings[widget.id] ?? false;
-              const isSubmitting =
-                fetcher.state !== "idle" &&
-                fetcher.formData?.get("key") === widget.id;
+          <BlockStack gap="400">
+            {!hasPremium && (
+              <Banner title="You are currently on the Free Plan" tone="info">
+                <p>
+                  Advanced widgets such as Review Carousel, Verified Buyer Badge, and Minimal Card require a Premium Subscription. Upgrade anytime to unlock all widgets!
+                </p>
+              </Banner>
+            )}
 
-              return (
-                <Card key={widget.id} padding="0">
-                  <Box
-                    background="bg-surface-secondary"
-                    borderStartStartRadius="300"
-                    borderStartEndRadius="300"
-                    overflowX="hidden"
-                    overflowY="hidden"
-                  >
-                    <Image
-                      source={widget.image}
-                      alt={widget.name}
-                      style={{
-                        width: "100%",
-                        height: "170px",
-                        objectFit: "cover",
-                        display: "block",
-                      }}
-                    />
-                  </Box>
+            <InlineGrid columns={{ xs: 1, sm: 2, md: 3 }} gap="400">
+              {WIDGETS.map((widget) => {
+                const isEnabled = settings[widget.id] ?? false;
+                const isLocked = widget.isPremium && !hasPremium;
+                const isSubmitting =
+                  fetcher.state !== "idle" &&
+                  fetcher.formData?.get("key") === widget.id;
 
-                  <Box padding="400">
-                    <BlockStack gap="300">
-                      <InlineStack align="space-between" blockAlign="center">
-                        <Text variant="headingSm" as="h3">
-                          {widget.name}
+                return (
+                  <Card key={widget.id} padding="0">
+                    <Box
+                      background="bg-surface-secondary"
+                      borderStartStartRadius="300"
+                      borderStartEndRadius="300"
+                      overflowX="hidden"
+                      overflowY="hidden"
+                    >
+                      <Image
+                        source={widget.image}
+                        alt={widget.name}
+                        style={{
+                          width: "100%",
+                          height: "170px",
+                          objectFit: "cover",
+                          display: "block",
+                        }}
+                      />
+                    </Box>
+
+                    <Box padding="400">
+                      <BlockStack gap="300">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <Text variant="headingSm" as="h3">
+                            {widget.name}
+                          </Text>
+                          <InlineStack gap="100">
+                            {widget.isPremium && (
+                              <Badge tone="warning">PRO</Badge>
+                            )}
+                            <Badge tone={isEnabled ? "success" : "attention"}>
+                              {isEnabled ? "Active" : "Disabled"}
+                            </Badge>
+                          </InlineStack>
+                        </InlineStack>
+
+                        <Text variant="bodySm" tone="subdued">
+                          {widget.description}
                         </Text>
-                        <Badge tone={isEnabled ? "success" : "attention"}>
-                          {isEnabled ? "Active" : "Disabled"}
-                        </Badge>
-                      </InlineStack>
 
-                      <Text variant="bodySm" tone="subdued">
-                        {widget.description}
-                      </Text>
+                        <Divider />
 
-                      <Divider />
-
-                      <fetcher.Form method="post">
-                        <input type="hidden" name="key" value={widget.id} />
-                        <input
-                          type="hidden"
-                          name="enabled"
-                          value={isEnabled ? "false" : "true"}
-                        />
-                        <Button
-                          fullWidth
-                          variant={isEnabled ? "secondary" : "primary"}
-                          tone={isEnabled ? "critical" : undefined}
-                          submit
-                          loading={isSubmitting}
-                        >
-                          {isEnabled ? "Disable Widget" : "Enable Widget"}
-                        </Button>
-                      </fetcher.Form>
-                    </BlockStack>
-                  </Box>
-                </Card>
-              );
-            })}
-          </InlineGrid>
+                        {isLocked ? (
+                          <Button
+                            fullWidth
+                            tone="critical"
+                            variant="primary"
+                            url="/app/upgrade"
+                          >
+                            Unlock with Premium
+                          </Button>
+                        ) : (
+                          <fetcher.Form method="post">
+                            <input type="hidden" name="key" value={widget.id} />
+                            <input
+                              type="hidden"
+                              name="enabled"
+                              value={isEnabled ? "false" : "true"}
+                            />
+                            <input
+                              type="hidden"
+                              name="isPremium"
+                              value={widget.isPremium ? "true" : "false"}
+                            />
+                            <Button
+                              fullWidth
+                              variant={isEnabled ? "secondary" : "primary"}
+                              tone={isEnabled ? "critical" : undefined}
+                              submit
+                              loading={isSubmitting}
+                            >
+                              {isEnabled ? "Disable Widget" : "Enable Widget"}
+                            </Button>
+                          </fetcher.Form>
+                        )}
+                      </BlockStack>
+                    </Box>
+                  </Card>
+                );
+              })}
+            </InlineGrid>
+          </BlockStack>
         </Box>
       </Page>
     </AppProvider>
