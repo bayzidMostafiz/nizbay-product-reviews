@@ -18,11 +18,11 @@ import {
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate, MONTHLY_PLAN } from "../shopify.server";
 
-// 1. Metafield read & Billing status check
+// ১. মেটাফিল্ড ও বিলিং স্ট্যাটাস চেক করা
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, billing } = await authenticate.admin(request);
 
-  // Billing check: store-er active premium subscription ache kina
+  // Billing check: স্টোরে সক্রিয় প্রিমিয়াম সাবস্ক্রিপশন আছে কি না
   const billingCheck = await billing.check({
     plans: [MONTHLY_PLAN],
     isTest: true,
@@ -57,7 +57,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { settings, hasPremium };
 };
 
-// 2. Action: check plan before saving metafield
+// ২. মেটাফিল্ড আপডেট অ্যাকশন
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, billing } = await authenticate.admin(request);
   const formData = await request.formData();
@@ -65,7 +65,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const enabled = formData.get("enabled") === "true";
   const isPremiumWidget = formData.get("isPremium") === "true";
 
-  // Check if store has premium for locked widgets
+  // প্রিমিয়াম উইজেটের জন্য সাবস্ক্রিপশন ভ্যালিডেশন
   const billingCheck = await billing.check({
     plans: [MONTHLY_PLAN],
     isTest: true,
@@ -89,9 +89,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     `#graphql
     mutation setWidgetMetafield($metafields: [MetafieldsSetInput!]!) {
       metafieldsSet(metafields: $metafields) {
-        metafields {
-          key
-          value
+        metafields { 
+          key 
+          value 
         }
         userErrors {
           field
@@ -117,7 +117,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return { success: true };
 };
 
-// 3. Widgets with Free & Premium configuration
+// ৩. ফ্রি এবং প্রিমিয়াম উইজেটের তালিকা
 const WIDGETS = [
   {
     id: "star_rating",
@@ -170,6 +170,7 @@ export default function WidgetsPage() {
             ? {
                 content: "Upgrade to Premium ($9.99/mo)",
                 url: "/app/upgrade",
+                target: "_top",
               }
             : undefined
         }
@@ -241,6 +242,7 @@ export default function WidgetsPage() {
                             tone="critical"
                             variant="primary"
                             url="/app/upgrade"
+                            target="_top"
                           >
                             Unlock with Premium
                           </Button>

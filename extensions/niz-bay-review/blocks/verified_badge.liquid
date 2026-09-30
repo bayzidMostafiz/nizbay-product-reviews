@@ -1,0 +1,18 @@
+{% assign is_enabled = app.metafields.nizbay_widgets.verified_badge %}
+
+{% if is_enabled == 'true' or is_enabled == true %}
+  <div style="display: inline-block; background: #ecfdf5; color: #059669; padding: 4px 10px; border-radius: 9999px; font-size: 13px; font-weight: 600;">
+    ✓ Verified NizBay Store
+  </div>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Verified Buyer Badge",
+  "target": "section",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": []
+}
+{% endschema %}

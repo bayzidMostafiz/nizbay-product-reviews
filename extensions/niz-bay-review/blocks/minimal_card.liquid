@@ -1,0 +1,19 @@
+{% assign is_enabled = app.metafields.nizbay_widgets.minimal_card %}
+
+{% if is_enabled == 'true' or is_enabled == true %}
+  <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+    <strong>Minimal Review Highlight</strong>
+    <p style="color: #64748b; font-size: 14px;">"Best quality product ever!"</p>
+  </div>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Minimal Review Card",
+  "target": "section",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": []
+}
+{% endschema %}

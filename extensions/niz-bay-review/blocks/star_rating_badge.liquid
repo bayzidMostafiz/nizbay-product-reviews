@@ -1,0 +1,20 @@
+{% comment %} ড্যাশবোর্ড থেকে টগল চেক {% endcomment %}
+{% assign is_enabled = app.metafields.nizbay_widgets.star_rating %}
+
+{% if is_enabled == 'true' or is_enabled == true %}
+  <div class="nizbay-star-badge" style="display: inline-flex; align-items: center; gap: 6px; margin: 8px 0;">
+    <span style="color: #f59e0b; font-size: 18px;">★★★★★</span>
+    <span style="font-size: 14px; color: #475569;">(5.0 Reviews)</span>
+  </div>
+{% endif %}
+
+{% schema %}
+{
+  "name": "Star Rating Badge",
+  "target": "section",
+  "enabled_on": {
+    "templates": ["product"]
+  },
+  "settings": []
+}
+{% endschema %}
