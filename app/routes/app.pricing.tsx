@@ -1,6 +1,5 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher } from "react-router";
-import { useEffect } from "react";
 import {
   Page,
   Card,
@@ -42,40 +41,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { billing, session } = await authenticate.admin(request);
+  const { billing } = await authenticate.admin(request);
   const formData = await request.formData();
   const selectedPlan = formData.get("plan") as string;
 
   const targetPlan = selectedPlan === "enterprise" ? ENTERPRISE_PLAN : PRO_PLAN;
+  const currentUrl = new URL(request.url);
 
-  try {
-    // বিলিং রিকোয়েস্ট তৈরি
-    await billing.request({
-      plan: targetPlan,
-      isTest: true,
-      returnUrl: `https://${session.shop}/admin/apps/nizbay-product-reviews/app/widgets`,
-    });
-  } catch (response: any) {
-    // Shopify Billing API যখন ৩xx রিডাইরেক্ট রেসপন্স থ্রো করে, হেডার থেকে কনফার্মেশন URL নিয়ে ক্লায়েন্টে পাঠাব
-    if (response instanceof Response && response.headers.get("location")) {
-      return { confirmationUrl: response.headers.get("location") };
-    }
-    throw response;
-  }
-
-  return null;
+  // returnUrl অবশ্যই অ্যাপের নিজস্ব ডোমেইন রুট হতে হবে (admin.shopify.com নয়)
+  return await billing.request({
+    plan: targetPlan,
+    isTest: true,
+    returnUrl: `${currentUrl.origin}/app/widgets`,
+  });
 };
 
 export default function PricingPage() {
   const { currentPlan } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<any>();
-
-  // যখন ব্যাকএন্ড থেকে পেমেন্ট কনফার্মেশন লিংক আসবে, ব্রাউজারের মূল উইন্ডো রিডাইরেক্ট হবে
-  useEffect(() => {
-    if (fetcher.data?.confirmationUrl) {
-      window.top!.location.href = fetcher.data.confirmationUrl;
-    }
-  }, [fetcher.data]);
+  const fetcher = useFetcher();
 
   const plans = [
     {
