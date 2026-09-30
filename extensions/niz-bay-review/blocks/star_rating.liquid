@@ -1,9 +1,15 @@
+{% comment %} অ্যাপ ইনস্টলেশনের মেটাফিল্ড চেক করা {% endcomment %}
+{% assign is_widget_enabled = app.metafields.nizbay_widgets.review_list %}
+
+{% if is_widget_enabled == 'true' or is_widget_enabled == true %}
+  
+
 <div class="nizbay-review-container" style="margin: 30px 0; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; font-family: inherit;">
   <h3 style="font-size: 22px; font-weight: 700; margin-bottom: 20px; color: #0f172a;">
     Customer Reviews
   </h3>
 
-  <!-- রিভিউ লিস্ট দেখানোর জায়গা -->
+  <!-- রিভিউ লিস্ট দেখানোর জায়গা -->
   <div id="nizbay-reviews-list" style="margin-bottom: 30px;">
     <p style="color: #64748b;">Loading reviews...</p>
   </div>
@@ -47,7 +53,7 @@
 
 <script>
   (function() {
-    const API_BASE_URL = "https://picture-instance-photo-korea.trycloudflare.com"; // apnar running cloudflare tunnel url
+    const API_BASE_URL = "https://nizbay-product-reviews.vercel.app";
     const SHOP = "{{ shop.permanent_domain }}";
     const PRODUCT_ID = "gid://shopify/Product/{{ product.id }}";
 
@@ -55,7 +61,7 @@
     const reviewForm = document.getElementById("nizbay-review-form");
     const statusMsg = document.getElementById("review-status-msg");
 
-    // ১. ডাটাবেজ থেকে এপ্রুভ হওয়া রিভিউ আনা
+    // ১. ডাটাবেজ থেকে এপ্রুভ হওয়া রিভিউ আনা
     async function loadReviews() {
       try {
         const res = await fetch(`${API_BASE_URL}/api/reviews?shop=${SHOP}&productId=${encodeURIComponent(PRODUCT_ID)}`);
@@ -130,7 +136,7 @@
     loadReviews();
   })();
 </script>
-
+{% endif %}
 {% schema %}
 {
   "name": "NizBay Reviews",

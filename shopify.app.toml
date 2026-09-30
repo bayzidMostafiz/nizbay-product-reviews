@@ -48,8 +48,9 @@ api_version = "2026-10"
 redirect_urls = [
   "https://nizbay-product-reviews.vercel.app/auth/callback",
   "https://nizbay-product-reviews.vercel.app/auth/shopify/callback",
-  "https://nizbay-product-reviews.vercel.app/api/auth"
+  "https://nizbay-product-reviews.vercel.app/api/auth",
+  "https://nizbay-product-reviews.vercel.app/api/auth/callback"
 ]
 
 [build]
-automatically_update_urls_on_dev = true
+automatically_update_urls_on_dev = false
