@@ -14,6 +14,7 @@ import {
   Box,
   Divider,
   List,
+  Banner,
 } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate, PRO_PLAN, ENTERPRISE_PLAN } from "../shopify.server";
@@ -48,12 +49,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const isEnterprise = selectedPlan === "enterprise";
   const planName = isEnterprise ? ENTERPRISE_PLAN : PRO_PLAN;
-  const planPrice = isEnterprise ? 29.99 : 9.99;
+  const planPrice = isEnterprise ? "29.99" : "9.99";
 
   const url = new URL(request.url);
   const returnUrl = `${url.origin}/app/widgets`;
 
-  // GraphQL diye direct recurring subscription create kora
   const response = await admin.graphql(
     `#graphql
     mutation CreateSubscription($name: String!, $returnUrl: URL!, $price: Decimal!) {
@@ -94,28 +94,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const resData = await response.json();
   const confirmationUrl =
     resData.data?.appSubscriptionCreate?.confirmationUrl;
+  const userErrors = resData.data?.appSubscriptionCreate?.userErrors;
 
   if (confirmationUrl) {
     return { confirmationUrl };
   }
 
-  const errors = resData.data?.appSubscriptionCreate?.userErrors;
-  console.error("Subscription Error:", errors);
-  return { error: errors?.[0]?.message || "Failed to create subscription" };
+  return { error: userErrors?.[0]?.message || "Subscription request failed" };
 };
 
 export default function PricingPage() {
   const { currentPlan } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<any>();
 
-  // Confirmation URL ashle puro browser window Shopify checkout screen e niye jabe
+  // App Bridge compliant parent window redirection
   useEffect(() => {
     if (fetcher.data?.confirmationUrl) {
-      if (window.top) {
-        window.top.location.href = fetcher.data.confirmationUrl;
-      } else {
-        window.location.href = fetcher.data.confirmationUrl;
-      }
+      // Shopify App Bridge এ `open(url, "_top")` প্যারেন্ট ট্যাবকে রিডাইরেক্ট করে
+      open(fetcher.data.confirmationUrl, "_top");
     }
   }, [fetcher.data]);
 
@@ -170,84 +166,92 @@ export default function PricingPage() {
         backAction={{ content: "Widgets", url: "/app/widgets" }}
       >
         <Box paddingBlockEnd="800">
-          <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
-            {plans.map((plan) => {
-              const isCurrent = currentPlan.toLowerCase() === plan.id;
-              const isSubmitting =
-                fetcher.state !== "idle" &&
-                fetcher.formData?.get("plan") === plan.id;
+          <BlockStack gap="400">
+            {fetcher.data?.error && (
+              <Banner tone="critical" title="Upgrade Error">
+                <p>{fetcher.data.error}</p>
+              </Banner>
+            )}
 
-              return (
-                <Card key={plan.id}>
-                  <Box padding="200">
-                    <BlockStack gap="400">
-                      <InlineStack align="space-between" blockAlign="center">
-                        <Text variant="headingMd" as="h3">
-                          {plan.name}
-                        </Text>
-                        {plan.isPopular && (
-                          <Badge tone="magic">MOST POPULAR</Badge>
-                        )}
-                        {isCurrent && (
-                          <Badge tone="success">CURRENT PLAN</Badge>
-                        )}
-                      </InlineStack>
+            <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+              {plans.map((plan) => {
+                const isCurrent = currentPlan.toLowerCase() === plan.id;
+                const isSubmitting =
+                  fetcher.state !== "idle" &&
+                  fetcher.formData?.get("plan") === plan.id;
 
-                      <InlineStack align="start" blockAlign="baseline" gap="100">
-                        <Text variant="heading2xl" as="h2">
-                          {plan.price}
-                        </Text>
+                return (
+                  <Card key={plan.id}>
+                    <Box padding="200">
+                      <BlockStack gap="400">
+                        <InlineStack align="space-between" blockAlign="center">
+                          <Text variant="headingMd" as="h3">
+                            {plan.name}
+                          </Text>
+                          {plan.isPopular && (
+                            <Badge tone="magic">MOST POPULAR</Badge>
+                          )}
+                          {isCurrent && (
+                            <Badge tone="success">CURRENT PLAN</Badge>
+                          )}
+                        </InlineStack>
+
+                        <InlineStack align="start" blockAlign="baseline" gap="100">
+                          <Text variant="heading2xl" as="h2">
+                            {plan.price}
+                          </Text>
+                          <Text variant="bodySm" tone="subdued">
+                            / month
+                          </Text>
+                        </InlineStack>
+
                         <Text variant="bodySm" tone="subdued">
-                          / month
+                          {plan.description}
                         </Text>
-                      </InlineStack>
 
-                      <Text variant="bodySm" tone="subdued">
-                        {plan.description}
-                      </Text>
+                        <Divider />
 
-                      <Divider />
+                        <BlockStack gap="200">
+                          <Text variant="headingXs" as="h4">
+                            What's included:
+                          </Text>
+                          <List type="bullet">
+                            {plan.features.map((feature, idx) => (
+                              <List.Item key={idx}>{feature}</List.Item>
+                            ))}
+                          </List>
+                        </BlockStack>
 
-                      <BlockStack gap="200">
-                        <Text variant="headingXs" as="h4">
-                          What's included:
-                        </Text>
-                        <List type="bullet">
-                          {plan.features.map((feature, idx) => (
-                            <List.Item key={idx}>{feature}</List.Item>
-                          ))}
-                        </List>
-                      </BlockStack>
-
-                      <Box paddingBlockStart="200">
-                        {isCurrent ? (
-                          <Button fullWidth disabled>
-                            Active Plan
-                          </Button>
-                        ) : plan.id === "free" ? (
-                          <Button fullWidth disabled>
-                            Default
-                          </Button>
-                        ) : (
-                          <fetcher.Form method="post">
-                            <input type="hidden" name="plan" value={plan.id} />
-                            <Button
-                              fullWidth
-                              variant={plan.isPopular ? "primary" : "secondary"}
-                              submit
-                              loading={isSubmitting}
-                            >
-                              Upgrade to {plan.name}
+                        <Box paddingBlockStart="200">
+                          {isCurrent ? (
+                            <Button fullWidth disabled>
+                              Active Plan
                             </Button>
-                          </fetcher.Form>
-                        )}
-                      </Box>
-                    </BlockStack>
-                  </Box>
-                </Card>
-              );
-            })}
-          </InlineGrid>
+                          ) : plan.id === "free" ? (
+                            <Button fullWidth disabled>
+                              Default
+                            </Button>
+                          ) : (
+                            <fetcher.Form method="post">
+                              <input type="hidden" name="plan" value={plan.id} />
+                              <Button
+                                fullWidth
+                                variant={plan.isPopular ? "primary" : "secondary"}
+                                submit
+                                loading={isSubmitting}
+                              >
+                                Upgrade to {plan.name}
+                              </Button>
+                            </fetcher.Form>
+                          )}
+                        </Box>
+                      </BlockStack>
+                    </Box>
+                  </Card>
+                );
+              })}
+            </InlineGrid>
+          </BlockStack>
         </Box>
       </Page>
     </AppProvider>
