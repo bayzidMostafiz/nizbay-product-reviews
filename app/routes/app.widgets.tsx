@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher } from "react-router";
-import { Page, Layout, Card, BlockStack, InlineStack, Text, Button, Badge } from "@shopify/polaris";
+import { Page, Layout, Card, BlockStack, InlineStack, Text, Button, Badge, AppProvider } from "@shopify/polaris";
+import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate } from "../shopify.server";
 
 // ১. মেটাফিল্ড রিড করা
@@ -95,46 +96,48 @@ export default function WidgetsPage() {
   const fetcher = useFetcher();
 
   return (
-    <Page title="Review Widgets" subtitle="Enable or disable review components for your storefront.">
-      <Layout>
-        <Layout.Section>
-          <BlockStack gap="400">
-            {WIDGETS.map((widget) => {
-              const isEnabled = settings[widget.id] ?? false;
-              const isSubmitting = fetcher.state !== "idle" && fetcher.formData?.get("key") === widget.id;
+    <AppProvider i18n={enTranslations}>
+      <Page title="Review Widgets" subtitle="Enable or disable review components for your storefront.">
+        <Layout>
+          <Layout.Section>
+            <BlockStack gap="400">
+              {WIDGETS.map((widget) => {
+                const isEnabled = settings[widget.id] ?? false;
+                const isSubmitting = fetcher.state !== "idle" && fetcher.formData?.get("key") === widget.id;
 
-              return (
-                <Card key={widget.id}>
-                  <InlineStack align="space-between" blockAlign="center">
-                    <BlockStack gap="100">
-                      <InlineStack gap="200" blockAlign="center">
-                        <Text variant="headingMd" as="h5">{widget.name}</Text>
-                        <Badge tone={isEnabled ? "success" : "attention"}>
-                          {isEnabled ? "Active" : "Disabled"}
-                        </Badge>
-                      </InlineStack>
-                      <Text variant="bodySm" tone="subdued">{widget.description}</Text>
-                    </BlockStack>
+                return (
+                  <Card key={widget.id}>
+                    <InlineStack align="space-between" blockAlign="center">
+                      <BlockStack gap="100">
+                        <InlineStack gap="200" blockAlign="center">
+                          <Text variant="headingMd" as="h5">{widget.name}</Text>
+                          <Badge tone={isEnabled ? "success" : "attention"}>
+                            {isEnabled ? "Active" : "Disabled"}
+                          </Badge>
+                        </InlineStack>
+                        <Text variant="bodySm" tone="subdued">{widget.description}</Text>
+                      </BlockStack>
 
-                    <fetcher.Form method="post">
-                      <input type="hidden" name="key" value={widget.id} />
-                      <input type="hidden" name="enabled" value={isEnabled ? "false" : "true"} />
-                      <Button
-                        variant={isEnabled ? "secondary" : "primary"}
-                        tone={isEnabled ? "critical" : undefined}
-                        submit
-                        loading={isSubmitting}
-                      >
-                        {isEnabled ? "Disable Widget" : "Enable Widget"}
-                      </Button>
-                    </fetcher.Form>
-                  </InlineStack>
-                </Card>
-              );
-            })}
-          </BlockStack>
-        </Layout.Section>
-      </Layout>
-    </Page>
+                      <fetcher.Form method="post">
+                        <input type="hidden" name="key" value={widget.id} />
+                        <input type="hidden" name="enabled" value={isEnabled ? "false" : "true"} />
+                        <Button
+                          variant={isEnabled ? "secondary" : "primary"}
+                          tone={isEnabled ? "critical" : undefined}
+                          submit
+                          loading={isSubmitting}
+                        >
+                          {isEnabled ? "Disable Widget" : "Enable Widget"}
+                        </Button>
+                      </fetcher.Form>
+                    </InlineStack>
+                  </Card>
+                );
+              })}
+            </BlockStack>
+          </Layout.Section>
+        </Layout>
+      </Page>
+    </AppProvider>
   );
 }
