@@ -169,7 +169,7 @@ export default function WidgetsPage() {
           !hasPremium
             ? {
                 content: "Upgrade to Premium ($9.99/mo)",
-                url: "/app/upgrade",
+                url: "/app/pricing",
                 target: "_top",
               }
             : undefined
@@ -241,7 +241,7 @@ export default function WidgetsPage() {
                             fullWidth
                             tone="critical"
                             variant="primary"
-                            url="/app/upgrade"
+                            url="/app/pricing"
                             target="_top"
                           >
                             Unlock with Premium
