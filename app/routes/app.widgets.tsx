@@ -16,15 +16,14 @@ import {
   Banner,
 } from "@shopify/polaris";
 import enTranslations from "@shopify/polaris/locales/en.json";
-import { authenticate, MONTHLY_PLAN } from "../shopify.server";
+import { authenticate, PRO_PLAN, ENTERPRISE_PLAN } from "../shopify.server";
 
-// ১. মেটাফিল্ড ও বিলিং স্ট্যাটাস চেক করা
+// ১. মেটাফিল্ড ও বিলিং স্ট্যাটাস চেক করা (Pro অথবা Enterprise)
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, billing } = await authenticate.admin(request);
 
-  // Billing check: স্টোরে সক্রিয় প্রিমিয়াম সাবস্ক্রিপশন আছে কি না
   const billingCheck = await billing.check({
-    plans: [MONTHLY_PLAN],
+    plans: [PRO_PLAN, ENTERPRISE_PLAN],
     isTest: true,
   });
 
@@ -57,7 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { settings, hasPremium };
 };
 
-// ২. মেটাফিল্ড আপডেট অ্যাকশন
+// ২. মেটাফিল্ড আপডেট অ্যাকশন ও প্ল্যান ভ্যালিডেশন
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, billing } = await authenticate.admin(request);
   const formData = await request.formData();
@@ -65,9 +64,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const enabled = formData.get("enabled") === "true";
   const isPremiumWidget = formData.get("isPremium") === "true";
 
-  // প্রিমিয়াম উইজেটের জন্য সাবস্ক্রিপশন ভ্যালিডেশন
   const billingCheck = await billing.check({
-    plans: [MONTHLY_PLAN],
+    plans: [PRO_PLAN, ENTERPRISE_PLAN],
     isTest: true,
   });
 
@@ -117,7 +115,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return { success: true };
 };
 
-// ৩. ফ্রি এবং প্রিমিয়াম উইজেটের তালিকা
+// ৩. উইজেটের তালিকা ও প্রিমিয়াম স্ট্যাটাস
 const WIDGETS = [
   {
     id: "star_rating",
@@ -168,9 +166,8 @@ export default function WidgetsPage() {
         primaryAction={
           !hasPremium
             ? {
-                content: "Upgrade to Premium ($9.99/mo)",
+                content: "View Pricing Plans",
                 url: "/app/pricing",
-                target: "_top",
               }
             : undefined
         }
@@ -180,7 +177,7 @@ export default function WidgetsPage() {
             {!hasPremium && (
               <Banner title="You are currently on the Free Plan" tone="info">
                 <p>
-                  Advanced widgets such as Review Carousel, Verified Buyer Badge, and Minimal Card require a Premium Subscription. Upgrade anytime to unlock all widgets!
+                  Advanced widgets such as Review Carousel, Verified Buyer Badge, and Minimal Card require a paid subscription. Upgrade to unlock all widgets!
                 </p>
               </Banner>
             )}
@@ -242,7 +239,6 @@ export default function WidgetsPage() {
                             tone="critical"
                             variant="primary"
                             url="/app/pricing"
-                            target="_top"
                           >
                             Unlock with Premium
                           </Button>
