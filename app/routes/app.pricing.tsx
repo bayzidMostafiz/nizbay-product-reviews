@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { useLoaderData, Form, useNavigation } from "react-router";
+import { useLoaderData, useFetcher } from "react-router";
+import { useEffect } from "react";
 import {
   Page,
   Card,
@@ -8,11 +9,13 @@ import {
   Text,
   Button,
   Badge,
+  AppProvider,
   InlineGrid,
   Box,
   Divider,
   List,
 } from "@shopify/polaris";
+import enTranslations from "@shopify/polaris/locales/en.json";
 import { authenticate, PRO_PLAN, ENTERPRISE_PLAN } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -45,17 +48,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const targetPlan = selectedPlan === "enterprise" ? ENTERPRISE_PLAN : PRO_PLAN;
 
-  // returnUrl-এ শপিফাই অ্যাডমিনের ড্যাশবোর্ড উইজেট পেজের লিঙ্ক দেওয়া হলো
-  return billing.request({
-    plan: targetPlan,
-    isTest: true,
-    returnUrl: `https://${session.shop}/admin/apps/nizbay-product-reviews/app/widgets`,
-  });
+  try {
+    // বিলিং রিকোয়েস্ট তৈরি
+    await billing.request({
+      plan: targetPlan,
+      isTest: true,
+      returnUrl: `https://${session.shop}/admin/apps/nizbay-product-reviews/app/widgets`,
+    });
+  } catch (response: any) {
+    // Shopify Billing API যখন ৩xx রিডাইরেক্ট রেসপন্স থ্রো করে, হেডার থেকে কনফার্মেশন URL নিয়ে ক্লায়েন্টে পাঠাব
+    if (response instanceof Response && response.headers.get("location")) {
+      return { confirmationUrl: response.headers.get("location") };
+    }
+    throw response;
+  }
+
+  return null;
 };
 
 export default function PricingPage() {
   const { currentPlan } = useLoaderData<typeof loader>();
-  const navigation = useNavigation();
+  const fetcher = useFetcher<any>();
+
+  // যখন ব্যাকএন্ড থেকে পেমেন্ট কনফার্মেশন লিংক আসবে, ব্রাউজারের মূল উইন্ডো রিডাইরেক্ট হবে
+  useEffect(() => {
+    if (fetcher.data?.confirmationUrl) {
+      window.top!.location.href = fetcher.data.confirmationUrl;
+    }
+  }, [fetcher.data]);
 
   const plans = [
     {
@@ -101,91 +121,93 @@ export default function PricingPage() {
   ];
 
   return (
-    <Page
-      title="Subscription Plans"
-      subtitle="Choose the plan that fits your business needs."
-      backAction={{ content: "Widgets", url: "/app/widgets" }}
-    >
-      <Box paddingBlockEnd="800">
-        <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
-          {plans.map((plan) => {
-            const isCurrent = currentPlan.toLowerCase() === plan.id;
-            const isSubmitting =
-              navigation.state !== "idle" &&
-              navigation.formData?.get("plan") === plan.id;
+    <AppProvider i18n={enTranslations}>
+      <Page
+        title="Subscription Plans"
+        subtitle="Choose the plan that fits your business needs."
+        backAction={{ content: "Widgets", url: "/app/widgets" }}
+      >
+        <Box paddingBlockEnd="800">
+          <InlineGrid columns={{ xs: 1, md: 3 }} gap="400">
+            {plans.map((plan) => {
+              const isCurrent = currentPlan.toLowerCase() === plan.id;
+              const isSubmitting =
+                fetcher.state !== "idle" &&
+                fetcher.formData?.get("plan") === plan.id;
 
-            return (
-              <Card key={plan.id}>
-                <Box padding="200">
-                  <BlockStack gap="400">
-                    <InlineStack align="space-between" blockAlign="center">
-                      <Text variant="headingMd" as="h3">
-                        {plan.name}
-                      </Text>
-                      {plan.isPopular && (
-                        <Badge tone="magic">MOST POPULAR</Badge>
-                      )}
-                      {isCurrent && (
-                        <Badge tone="success">CURRENT PLAN</Badge>
-                      )}
-                    </InlineStack>
+              return (
+                <Card key={plan.id}>
+                  <Box padding="200">
+                    <BlockStack gap="400">
+                      <InlineStack align="space-between" blockAlign="center">
+                        <Text variant="headingMd" as="h3">
+                          {plan.name}
+                        </Text>
+                        {plan.isPopular && (
+                          <Badge tone="magic">MOST POPULAR</Badge>
+                        )}
+                        {isCurrent && (
+                          <Badge tone="success">CURRENT PLAN</Badge>
+                        )}
+                      </InlineStack>
 
-                    <InlineStack align="start" blockAlign="baseline" gap="100">
-                      <Text variant="heading2xl" as="h2">
-                        {plan.price}
-                      </Text>
+                      <InlineStack align="start" blockAlign="baseline" gap="100">
+                        <Text variant="heading2xl" as="h2">
+                          {plan.price}
+                        </Text>
+                        <Text variant="bodySm" tone="subdued">
+                          / month
+                        </Text>
+                      </InlineStack>
+
                       <Text variant="bodySm" tone="subdued">
-                        / month
+                        {plan.description}
                       </Text>
-                    </InlineStack>
 
-                    <Text variant="bodySm" tone="subdued">
-                      {plan.description}
-                    </Text>
+                      <Divider />
 
-                    <Divider />
+                      <BlockStack gap="200">
+                        <Text variant="headingXs" as="h4">
+                          What's included:
+                        </Text>
+                        <List type="bullet">
+                          {plan.features.map((feature, idx) => (
+                            <List.Item key={idx}>{feature}</List.Item>
+                          ))}
+                        </List>
+                      </BlockStack>
 
-                    <BlockStack gap="200">
-                      <Text variant="headingXs" as="h4">
-                        What's included:
-                      </Text>
-                      <List type="bullet">
-                        {plan.features.map((feature, idx) => (
-                          <List.Item key={idx}>{feature}</List.Item>
-                        ))}
-                      </List>
-                    </BlockStack>
-
-                    <Box paddingBlockStart="200">
-                      {isCurrent ? (
-                        <Button fullWidth disabled>
-                          Active Plan
-                        </Button>
-                      ) : plan.id === "free" ? (
-                        <Button fullWidth disabled>
-                          Default
-                        </Button>
-                      ) : (
-                        <Form method="post" target="_top">
-                          <input type="hidden" name="plan" value={plan.id} />
-                          <Button
-                            fullWidth
-                            variant={plan.isPopular ? "primary" : "secondary"}
-                            submit
-                            loading={isSubmitting}
-                          >
-                            Upgrade to {plan.name}
+                      <Box paddingBlockStart="200">
+                        {isCurrent ? (
+                          <Button fullWidth disabled>
+                            Active Plan
                           </Button>
-                        </Form>
-                      )}
-                    </Box>
-                  </BlockStack>
-                </Box>
-              </Card>
-            );
-          })}
-        </InlineGrid>
-      </Box>
-    </Page>
+                        ) : plan.id === "free" ? (
+                          <Button fullWidth disabled>
+                            Default
+                          </Button>
+                        ) : (
+                          <fetcher.Form method="post">
+                            <input type="hidden" name="plan" value={plan.id} />
+                            <Button
+                              fullWidth
+                              variant={plan.isPopular ? "primary" : "secondary"}
+                              submit
+                              loading={isSubmitting}
+                            >
+                              Upgrade to {plan.name}
+                            </Button>
+                          </fetcher.Form>
+                        )}
+                      </Box>
+                    </BlockStack>
+                  </Box>
+                </Card>
+              );
+            })}
+          </InlineGrid>
+        </Box>
+      </Page>
+    </AppProvider>
   );
 }
