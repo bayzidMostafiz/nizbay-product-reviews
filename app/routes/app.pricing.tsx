@@ -45,7 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const selectedPlan = formData.get("plan") as string;
 
@@ -53,8 +53,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const planName = isEnterprise ? ENTERPRISE_PLAN : PRO_PLAN;
   const planPrice = isEnterprise ? "29.99" : "9.99";
 
-  const url = new URL(request.url);
-  const returnUrl = `${url.origin}/app/widgets`;
+  // স্টোরের সাবডোমেন বের করা (যেমন: qr-generator-app-test)
+  const shopClean = session.shop.replace(".myshopify.com", "");
+
+  // শপিফাই অ্যাডমিন আইফ্রেমের রিটার্ন লিংক
+  const returnUrl = `https://admin.shopify.com/store/${shopClean}/apps/nizbay-product-reviews/app/widgets`;
 
   const response = await admin.graphql(
     `#graphql
@@ -105,7 +108,7 @@ export default function PricingPage() {
   const { currentPlan } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<any>();
 
-  // App Bridge native redirect for billing checkout
+  // App Bridge দিয়ে প্যারেন্ট শপিফাই অ্যাডমিন স্ক্রিন ওপেন করা
   useEffect(() => {
     if (fetcher.data?.confirmationUrl) {
       if (typeof shopify !== "undefined" && shopify.billing?.request) {
